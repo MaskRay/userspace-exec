@@ -19,6 +19,7 @@ typedef unsigned long ul;
 #define ALIGN_UP(x) ((x)+PAGESZ-1 & -PAGESZ)
 //#define INLINE static inline __attribute__((always_inline))
 #define INLINE static inline
+#define SHELLCODE __attribute__((section(".shellcode")))
 
 #if __WORDSIZE == 64
 # define Elf_Ehdr Elf64_Ehdr
@@ -39,15 +40,13 @@ typedef unsigned long ul;
 # define LDSO_BASE 0x200000
 #endif
 
-#define DEBUG
-
 #ifdef DEBUG
 # define DP(fmt, ...) fprintf(stderr, "%s:%d:%s " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #else
 # define DP(...)
 #endif
 
-INLINE long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long a5)
+SHELLCODE INLINE long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long a5)
 {
   long ret;
 #ifdef __i386
@@ -89,16 +88,16 @@ INLINE long syscall_impl(long number, long a0, long a1, long a2, long a3, long a
   return ret;
 }
 
-long syscall(long number, ...) __attribute__((alias("syscall_impl"), always_inline));
+SHELLCODE long syscall(long number, ...) __attribute__((alias("syscall_impl")));
 
 #define close my_close
-INLINE int my_close(int fd)
+SHELLCODE INLINE int my_close(int fd)
 {
   return syscall(__NR_close, fd);
 }
 
 #define fstat my_fstat
-INLINE int my_fstat(int fd, struct stat *buf)
+SHELLCODE INLINE int my_fstat(int fd, struct stat *buf)
 {
 #if defined(__i386) || defined(__arm__)
   return syscall(__NR_fstat64, fd, buf);
@@ -108,7 +107,7 @@ INLINE int my_fstat(int fd, struct stat *buf)
 }
 
 #define mmap my_mmap
-INLINE void *my_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+SHELLCODE INLINE void *my_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 #if defined(__i386) || defined(__arm__)
   return (void*)syscall(__NR_mmap2, addr, length, prot, flags, fd, offset/PAGESZ);
@@ -118,13 +117,13 @@ INLINE void *my_mmap(void *addr, size_t length, int prot, int flags, int fd, off
 }
 
 #define mprotect my_mprotect
-INLINE int my_mprotect(void *addr, size_t len, int prot)
+SHELLCODE INLINE int my_mprotect(void *addr, size_t len, int prot)
 {
   return syscall(__NR_mprotect, addr, len, prot);
 }
 
 #define munmap my_munmap
-INLINE int munmap(void *addr, size_t len)
+SHELLCODE INLINE int munmap(void *addr, size_t len)
 {
   return syscall(__NR_munmap, addr, len);
 }
@@ -134,21 +133,7 @@ INLINE int munmap(void *addr, size_t len)
 
 ///// main
 
-int f()
-{
-  REP(i, 10)
-    printf("%d\n", i);
-  return 7;
-}
-
-long _atol(const char *x)
-{
-  long r = 0;
-  while (*x != ' ') r = r*10+*x++-'0';
-  return r;
-}
-
-void *map_file(const char *file)
+SHELLCODE INLINE void *map_file(const char *file)
 {
   int fd = open(file, O_RDONLY);
   struct stat sb;
@@ -159,7 +144,7 @@ void *map_file(const char *file)
   return ret;
 }
 
-void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **interp_ehdr)
+SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **interp_ehdr)
 {
   DP("entry");
   bool is_pic;
@@ -230,7 +215,7 @@ void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **interp_ehdr)
   return (void*)entry;
 }
 
-void myexec2(void *elf, long len)
+SHELLCODE void myexec(void *elf, long len)
 {
   Elf_Ehdr *elf_ehdr, *interp_ehdr;
   void *entry = load_elf(elf, &elf_ehdr, &interp_ehdr);
@@ -276,7 +261,14 @@ void myexec2(void *elf, long len)
 #endif
 }
 
-void myexec(int argc, void *elf, long len)
+long _atol(const char *x)
+{
+  long r = 0;
+  while (*x != ' ') r = r*10+*x++-'0';
+  return r;
+}
+
+void myexec2(int argc, void *elf, long len)
 {
   char buf[999], *pbuf = buf;
   int fd = open("/proc/self/stat", O_RDONLY);
@@ -350,6 +342,6 @@ int main(int argc, char *argv[], char *envp[])
   void *elf = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
   close(fd);
 
-  //myexec(argc, elf, sb.st_size);
-  myexec2(elf, sb.st_size);
+  //myexec2(argc, elf, sb.st_size);
+  myexec(elf, sb.st_size);
 }
