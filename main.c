@@ -1,3 +1,4 @@
+#define _FILE_OFFSET_BITS 64
 #include <asm/unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,6 +17,8 @@
 typedef unsigned long ul;
 #define ALIGN_DOWN(x) ((x) & -PAGESZ)
 #define ALIGN_UP(x) ((x)+PAGESZ-1 & -PAGESZ)
+//#define INLINE static inline __attribute__((always_inline))
+#define INLINE static inline
 
 #if __WORDSIZE == 64
 # define Elf_Ehdr Elf64_Ehdr
@@ -44,10 +47,10 @@ typedef unsigned long ul;
 # define DP(...)
 #endif
 
-#ifdef __i386
-long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long a5)
+INLINE long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long a5)
 {
   long ret;
+#ifdef __i386
   asm("push %%ebp\n\t"
       "movl %1, %%eax\n\t"
       "movl %2, %%ebx\n\t"
@@ -60,12 +63,7 @@ long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long
       "pop %%ebp\n\t"
       : "=&a"(ret) : "g"(number),"g"(a0),"g"(a1),"g"(a2),"g"(a3),"g"(a4),"g"(a5) : "ebx","ecx","edx","esi","edi","memory","cc"
      );
-  return ret;
-}
 #elif defined(__x86_64)
-long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long a5)
-{
-  long ret;
   asm("movq %1, %%rax\n\t"
       "movq %%rsi, %%rdi\n\t"
       "movq %%rdx, %%rsi\n\t"
@@ -75,32 +73,58 @@ long syscall_impl(long number, long a0, long a1, long a2, long a3, long a4, long
       "movq %2, %%r9\n\t"
       "syscall\n\t"
       : "=&a"(ret) : "g"(number), "g"(a5) : "rdi","rsi","rdx","r10","r8","r9","memory","cc");
+#else
+  asm("ldr     r7, %1\n\t"
+      "ldr     r0, %2\n\t"
+      "ldr     r1, %3\n\t"
+      "ldr     r2, %4\n\t"
+      "ldr     r3, %5\n\t"
+      "ldr     r4, %6\n\t"
+      "ldr     r5, %7\n\t"
+      "swi     0x0\n\t"
+      "mov     %0, r0\n\t"
+      : "=&r"(ret) : "g"(number),"g"(a0),"g"(a1),"g"(a2),"g"(a3),"g"(a4),"g"(a5) : "r0","r1","r2","r3","r4","r5","r7","memory","cc"
+      );
+#endif
   return ret;
 }
+
+long syscall(long number, ...) __attribute__((alias("syscall_impl"), always_inline));
+
+#define close my_close
+INLINE int my_close(int fd)
+{
+  return syscall(__NR_close, fd);
+}
+
+#define fstat my_fstat
+INLINE int my_fstat(int fd, struct stat *buf)
+{
+#if defined(__i386) || defined(__arm__)
+  return syscall(__NR_fstat64, fd, buf);
 #else
-long syscall_impl(long number, ...)
-{
-  asm("mov     ip, sp\n\t"
-      "push    {r4, r5, r6, r7}\n\t"
-      "mov     r7, r0\n\t"
-      "mov     r0, r1\n\t"
-      "mov     r1, r2\n\t"
-      "mov     r2, r3\n\t"
-      "ldmfd   ip, {r3, r4, r5, r6}\n\t"
-      "swi     0x0\n\t"
-      "pop     {r4, r5, r6, r7}\n\t"
-      );
-}
+  return syscall(__NR_fstat, fd, buf);
 #endif
-
-long syscall(long number, ...) __attribute__((alias("syscall_impl")));
-
-void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
-{
-  return (void*)syscall(__NR_mmap, addr, length, prot, flags, fd, offset);
 }
 
-int munmap(void *addr, size_t len)
+#define mmap my_mmap
+INLINE void *my_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+{
+#if defined(__i386) || defined(__arm__)
+  return (void*)syscall(__NR_mmap2, addr, length, prot, flags, fd, offset/PAGESZ);
+#else
+  return (void*)syscall(__NR_mmap, addr, length, prot, flags, fd, offset);
+#endif
+}
+
+#define mprotect my_mprotect
+INLINE int my_mprotect(void *addr, size_t len, int prot)
+{
+  return syscall(__NR_mprotect, addr, len, prot);
+}
+
+#define munmap my_munmap
+INLINE int munmap(void *addr, size_t len)
 {
   return syscall(__NR_munmap, addr, len);
 }
@@ -319,12 +343,13 @@ void myexec(int argc, void *elf, long len)
 
 int main(int argc, char *argv[], char *envp[])
 {
-  struct stat sb;
+  struct stat sb = {};
   int fd = open(argv[1], O_RDONLY);
-  fstat(fd, &sb);
+  int g = fstat(fd, &sb);
+  DP("size of argv[1]: %lld\n", (long long)sb.st_size);
   void *elf = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
   close(fd);
 
-  myexec(argc, elf, sb.st_size);
-  //myexec2(elf, sb.st_size);
+  //myexec(argc, elf, sb.st_size);
+  myexec2(elf, sb.st_size);
 }
