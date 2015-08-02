@@ -227,7 +227,7 @@ SHELLCODE void myexec(void *elf, long len)
   volatile long stack[999], *p = stack;
   *p++ = 1; // argc
   volatile long *argv = p; // argv[]
-  *p++ = (long)"/bin/bash";
+  *p++ = (long)stack;
   *p++ = 0;
   volatile long *envp = p; // envp[]
   //*p++ = "LD_SHOW_AUXV=1";
@@ -244,7 +244,7 @@ SHELLCODE void myexec(void *elf, long len)
   *p++ = AT_ENTRY;
   *p++ = elf_ehdr->e_entry;
   *p++ = AT_RANDOM;
-  *p++ = (long)"meowmeowmeowmeow";
+  *p++ = (long)stack;
   *p++ = AT_NULL;
   *p++ = 0;
 
