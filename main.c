@@ -35,7 +35,7 @@ typedef unsigned long ul;
 #ifdef __i386
 # define LDSO_BASE 0x20000
 #elif defined(__x86_64)
-# define LDSO_BASE 0x20000
+# define LDSO_BASE 0x6666666000l
 #elif defined(__arm__)
 # define LDSO_BASE 0x200000
 #endif
@@ -82,7 +82,7 @@ SHELLCODE INLINE long syscall_impl(long number, long a0, long a1, long a2, long 
       "ldr     r5, %7\n\t"
       "swi     0x0\n\t"
       "mov     %0, r0\n\t"
-      : "=&r"(ret) : "g"(number),"g"(a0),"g"(a1),"g"(a2),"g"(a3),"g"(a4),"g"(a5) : "r0","r1","r2","r3","r4","r5","r7","memory","cc"
+      : "=&r"(ret) : "m"(number),"m"(a0),"m"(a1),"m"(a2),"m"(a3),"m"(a4),"m"(a5) : "r0","r1","r2","r3","r4","r5","r7","memory","cc"
       );
 #endif
   return ret;
@@ -150,22 +150,20 @@ SHELLCODE INLINE void *map_file(const char *file)
   return ret;
 }
 
+SHELLCODE INLINE void *my_memcpy(void *dst, const void *src, size_t n)
+{
+  char *x = dst;
+  const char *y = src;
+  for (; n; n--)
+    *x++ = *y++;
+  return dst;
+}
+
 SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **interp_ehdr)
 {
   DP("entry");
-  bool is_pic;
   Elf_Ehdr *ehdr = (Elf_Ehdr*)elf;
-  switch (ehdr->e_type) {
-  case ET_EXEC:
-    is_pic = false;
-    break;
-  case ET_DYN:
-    is_pic = true;
-    break;
-  default:
-    abort();
-    break;
-  }
+  bool is_pic = ehdr->e_type == ET_DYN;
   int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | (is_pic ? 0 : MAP_FIXED);
   Elf_Phdr *phdr = (Elf_Phdr*)((char*)ehdr+ehdr->e_phoff), *interp = NULL;
   ulong entry = ehdr->e_entry, first_addr = 0, first_specified, brk_addr = 0;
@@ -192,7 +190,7 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
       }
       ulong rounded_len = ALIGN_UP(phdr->p_vaddr%PAGESZ+phdr->p_memsz);
       ulong addr = (ulong)mmap((void*)specified, rounded_len, PROT_WRITE | PROT_EXEC, mmap_flags, -1, 0);
-      memcpy((char*)(is_pic ? addr+phdr->p_vaddr%PAGESZ : phdr->p_vaddr), (const char*)ehdr+phdr->p_offset, phdr->p_filesz);
+      my_memcpy((char*)(is_pic ? addr+phdr->p_vaddr%PAGESZ : phdr->p_vaddr), (const char*)ehdr+phdr->p_offset, phdr->p_filesz);
       mprotect((void*)addr, rounded_len, (phdr->p_flags & PF_R ? PROT_READ : 0) |
                                   (phdr->p_flags & PF_W ? PROT_WRITE : 0) |
                                   (phdr->p_flags & PF_X ? PROT_EXEC : 0));
@@ -200,7 +198,7 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
       DP("mmap_addr %p", addr);
       if (! first_addr) {
         if (elf_ehdr)
-          *elf_ehdr = addr;
+          *elf_ehdr = (Elf_Ehdr*)addr;
         first_addr = addr;
         if (is_pic) {
           first_specified = phdr->p_vaddr;
@@ -228,13 +226,13 @@ SHELLCODE void myexec(void *elf, long len)
 
   volatile long stack[999], *p = stack;
   *p++ = 1; // argc
-  long *argv = p; // argv[]
+  volatile long *argv = p; // argv[]
   *p++ = (long)"/bin/bash";
   *p++ = 0;
-  long *envp = p; // envp[]
+  volatile long *envp = p; // envp[]
   //*p++ = "LD_SHOW_AUXV=1";
   *p++ = 0;
-  long *auxv = p; // auxv[]
+  volatile long *auxv = p; // auxv[]
   //*p++ = AT_SYSINFO_EHDR; // AT_SYSINFO_EHDR for x86-64 arm; AT_SYSINFO for x86
   //*p++ = -1;
   *p++ = AT_PHDR;
@@ -246,7 +244,7 @@ SHELLCODE void myexec(void *elf, long len)
   *p++ = AT_ENTRY;
   *p++ = elf_ehdr->e_entry;
   *p++ = AT_RANDOM;
-  *p++ = "meowmeowmeowmeow";
+  *p++ = (long)"meowmeowmeowmeow";
   *p++ = AT_NULL;
   *p++ = 0;
 
@@ -331,9 +329,9 @@ void myexec2(int argc, void *elf, long len)
       "jmp *%1\n\t"
       :: "g"(p), "r"(entry));
 #elif defined(__arm__)
-  asm("ldr sp, %0\n\t"
+  asm("mov sp, %0\n\t"
       "bx %1\n\t"
-      :: "g"(p), "r"(entry));
+      :: "r"(p), "r"(entry));
 #else
 # error "this arch is not supported"
 #endif

@@ -1,9 +1,11 @@
+## defines
+
 arch := i386 x86-64 arm
-goals := $(addprefix pie-,$(arch))
+links := $(addprefix pie-,$(arch)) $(patsubst %,sc-%.so,$(arch))
 entry := myexec
 section = .shellcode
 CFLAGS += -std=gnu99
-CFLAGS += -Os
+#CFLAGS += -Os
 
 CC_arm := arm-unknown-linux-gnueabi-gcc
 OBJDUMP_arm := arm-unknown-linux-gnueabi-objdump
@@ -17,10 +19,10 @@ $1: main.c
 	$$(LINK.c) $$^ $$(LDLIBS) -o $$@
 endef
 
-all: $(goals)
+all: $(links)
 
 clean:
-	$(RM) *.o *.so
+	$(RM) *.o *.so $(links)
 
 ## pie
 
@@ -31,34 +33,40 @@ pie-arm: CFLAGS += -DDEBUG -g3 -fpie -pie
 
 ## shellcode
 
-sc-i386.so: CFLAGS += -fpic
-sc-i386.so: LDFLAGS += -Wl,-Bsymbolic
-sc-i386.so: main.c
-	$(LINK.c) -m32 $< -shared -o $@
+sc-i386.so: CFLAGS += -fpic -m32
+sc-i386.so: LDFLAGS += -shared -Wl,-Bsymbolic
 sc-i386: sc-i386.so
 	objcopy -I elf32-i386 -O binary -j $(section) $< $@
 dump-sc-i386: sc-i386
 	entry=$$(nm -g $<.so | gawk '/\<$(entry)\>/{print $$1}')
-	shellcode=$$(objdump -h $<.o | gawk '/$(section)\>/{print $$6}')
-	printf 0x%08x $$[0x$$entry-0x$$shellcode]
-	objdump -b binary -m i386 -M intel -D $<
+	shellcode=$$(objdump -wh $<.so | gawk '/$(section)\>/{print $$4}')
+	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
+	#objdump -b binary -m i386 -M intel -D $<
 
-sc-x86-64.o: main.c
-	$(LINK.c) $< -c -o $@
-sc-x86-64: sc-x86-64.o
+sc-x86-64.so: CFLAGS += -fpic
+sc-x86-64.so: LDFLAGS += -shared -Wl,-Bsymbolic
+sc-x86-64: sc-x86-64.so
 	objcopy -I elf64-x86-64 -O binary -j $(section) $< $@
 dump-sc-x86-64: sc-x86-64
-	objdump -b binary -m i386:x86-64 -D -M intel $<
+	entry=$$(nm -g $<.so | gawk '/\<$(entry)\>/{print $$1}')
+	shellcode=$$(objdump -wh $<.so | gawk '/$(section)\>/{print $$4}')
+	printf 'entry: 0x%016x\n' $$[0x$$entry-0x$$shellcode]
+	#objdump -b binary -m i386:x86-64 -D -M intel $<
 
-sc-arm.o: CC = $(CC_arm)
-sc-arm.o: main.c
-	$(COMPILE.c) $< -c -o $@
-sc-arm: sc-arm.o
+sc-arm.so: CC = $(CC_arm)
+sc-arm.so: CFLAGS += -fpic
+sc-arm.so: LDFLAGS += -shared -Wl,-Bsymbolic
+sc-arm: sc-arm.so
 	$(OBJCOPY_arm) -I elf32-littlearm -O binary -j $(section) $< $@
 dump-sc-arm: sc-arm
-	$(OBJDUMP_arm) -b binary -m arm -D $<
+	entry=$$(nm -g $<.so | gawk '/\<$(entry)\>/{print $$1}')
+	shellcode=$$(objdump -wh $<.so | gawk '/$(section)\>/{print $$4}')
+	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
+	#$(OBJDUMP_arm) -b binary -m arm -D $<
 
-$(foreach i, $(goals), $(eval $(call def, $i)))
+## misc
+
+$(foreach i, $(links), $(eval $(call def, $i)))
 .SUFFIXES:
 .PSEUDO: all clean
 .ONESHELL:
