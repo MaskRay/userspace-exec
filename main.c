@@ -90,6 +90,12 @@ SHELLCODE INLINE long syscall_impl(long number, long a0, long a1, long a2, long 
 
 SHELLCODE long syscall(long number, ...) __attribute__((alias("syscall_impl")));
 
+#define brk my_brk
+SHELLCODE INLINE void *my_brk(void *addr)
+{
+  return (void*)syscall(__NR_brk, addr);
+}
+
 #define close my_close
 SHELLCODE INLINE int my_close(int fd)
 {
