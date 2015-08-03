@@ -4,7 +4,7 @@ arch := i386 x86-64 arm
 links := $(addprefix pie-,$(arch)) $(patsubst %,sc-%.exe,$(arch))
 entry := myexec
 section = .shellcode
-CFLAGS += -std=gnu99
+CFLAGS += -std=gnu99 -I.
 CFLAGS += -Os
 
 CC_arm := arm-unknown-linux-gnueabi-gcc
@@ -22,7 +22,7 @@ endef
 all: $(links)
 
 clean:
-	$(RM) *.o *.so $(links)
+	$(RM) *.o *.so *.exe $(links)
 
 ## pie
 
