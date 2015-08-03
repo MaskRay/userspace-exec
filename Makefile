@@ -5,7 +5,7 @@ links := $(addprefix pie-,$(arch)) $(patsubst %,sc-%.exe,$(arch))
 entry := myexec
 section = .shellcode
 CFLAGS += -std=gnu99 -I.
-CFLAGS += -Os
+CFLAGS += -O1
 
 CC_arm := arm-unknown-linux-gnueabi-gcc
 OBJDUMP_arm := arm-unknown-linux-gnueabi-objdump
