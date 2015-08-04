@@ -83,8 +83,7 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
       }
       ulong rounded_len = ALIGN_UP(phdr->p_vaddr%PAGESZ+phdr->p_memsz);
       ulong addr = (ulong)mmap((void*)specified, rounded_len, PROT_WRITE | PROT_EXEC, mmap_flags, -1, 0);
-      //DP("mmap(%#lx,%#lx) = %#lx", specified, rounded_len, addr);
-      my_memcpy((char*)(is_pic ? addr+phdr->p_vaddr%PAGESZ : phdr->p_vaddr), (const char*)ehdr+phdr->p_offset, phdr->p_filesz);
+      my_memcpy((void*)(addr+phdr->p_vaddr%PAGESZ), (const void*)ehdr+phdr->p_offset, phdr->p_filesz);
       mprotect((void*)addr, rounded_len, (phdr->p_flags & PF_R ? PROT_READ : 0) |
                                   (phdr->p_flags & PF_W ? PROT_WRITE : 0) |
                                   (phdr->p_flags & PF_X ? PROT_EXEC : 0));
@@ -233,7 +232,6 @@ void myexec2(int argc, void *elf, long len)
 
 int main(int argc, char *argv[], char *envp[])
 {
-  struct stat sb = {};
   int fd = open(argv[1], O_RDONLY);
   DP("fd: %d\n", fd);
   off_t len = lseek(fd, 0, SEEK_END);
@@ -243,5 +241,5 @@ int main(int argc, char *argv[], char *envp[])
   close(fd);
 
   //myexec2(argc, elf, sb.st_size);
-  myexec(elf, sb.st_size);
+  myexec(elf, len);
 }

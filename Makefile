@@ -1,11 +1,16 @@
 ## defines
 
 arch := i386 x86-64 arm
-links := $(addprefix pie-,$(arch)) $(patsubst %,sc-%.exe,$(arch))
+pie_goals := $(addprefix pie-,$(arch))
+shared_goals := $(patsubst %,shared-%.so,$(arch))
+shellcode_goals := $(patsubst %,shellcode-%,$(arch))
+test_goals := tests/dl tests/shellcode
+goals := $(pie_goals) $(shared_goals) $(shellcode_goals) $(test_goals)
+link_targets := $(pie_goals) $(shared_goals) $(patsubst %,shellcode-%.exe,$(arch))
 entry := myexec
 section = .shellcode
 CFLAGS += -std=gnu99 -I.
-CFLAGS += -O1
+CFLAGS += -Os
 
 CC_arm := arm-unknown-linux-gnueabi-gcc
 OBJDUMP_arm := arm-unknown-linux-gnueabi-objdump
@@ -19,10 +24,16 @@ $1: main.c
 	$$(LINK.c) $$^ $$(LDLIBS) -o $$@
 endef
 
-all: $(links)
+## pseudo
+
+all: $(goals);
+pie: $(pie_goals);
+shared: $(shared_goals);
+shellcode: $(shellcode_goals);
+test: $(test_goals);
 
 clean:
-	$(RM) *.o *.so *.exe $(links)
+	$(RM) $(link_targets) shellcode-*
 
 ## pie
 
@@ -31,42 +42,52 @@ pie-x86-64: CFLAGS += -DDEBUG -g3 -fpie -pie
 pie-arm: CC = $(CC_arm)
 pie-arm: CFLAGS += -DDEBUG -g3 -fpie -pie
 
+## shared library
+
+shared-i386.so: CFLAGS += -DDEBUG -g3 -m32 -fpic -shared
+shared-x86-64.so: CFLAGS += -DDEBUG -g3 -fpic -shared
+shared-arm.so: CC = $(CC_arm)
+shared-arm.so: CFLAGS += -DDEBUG -g3 -fpic -shared
+
 ## shellcode
 
-sc-i386.exe: CFLAGS += -m32
-sc-i386.exe: LDFLAGS += -Wl,-Bsymbolic
-sc-i386: sc-i386.exe
+shellcode-i386.exe: CFLAGS += -m32
+shellcode-i386.exe: LDFLAGS += -Wl,-Bsymbolic
+shellcode-i386: shellcode-i386.exe
 	objcopy -I elf32-i386 -O binary -j $(section) $< $@
-dump-sc-i386: sc-i386
+dump-shellcode-i386: shellcode-i386
 	entry=$$(nm -g $<.exe | gawk '/\<$(entry)\>/{print $$1}')
 	shellcode=$$(objdump -wh $<.exe | gawk '/$(section)\>/{print $$4}')
 	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
 	#objdump -b binary -m i386 -M intel -D $<
 
-sc-x86-64.exe: CFLAGS +=
-sc-x86-64.exe: LDFLAGS += -Wl,-Bsymbolic
-sc-x86-64: sc-x86-64.exe
+shellcode-x86-64.exe: CFLAGS +=
+shellcode-x86-64.exe: LDFLAGS += -Wl,-Bsymbolic
+shellcode-x86-64: shellcode-x86-64.exe
 	objcopy -I elf64-x86-64 -O binary -j $(section) $< $@
-dump-sc-x86-64: sc-x86-64
+dump-shellcode-x86-64: shellcode-x86-64
 	entry=$$(nm -g $<.exe | gawk '/\<$(entry)\>/{print $$1}')
 	shellcode=$$(objdump -wh $<.exe | gawk '/$(section)\>/{print $$4}')
 	printf 'entry: 0x%016x\n' $$[0x$$entry-0x$$shellcode]
 	#objdump -b binary -m i386:x86-64 -D -M intel $<
 
-sc-arm.exe: CC = $(CC_arm)
-sc-arm.exe: CFLAGS += -mthumb
-sc-arm.exe: LDFLAGS += -Wl,-Bsymbolic
-sc-arm: sc-arm.exe
+shellcode-arm.exe: CC = $(CC_arm)
+shellcode-arm.exe: CFLAGS += -mthumb
+shellcode-arm.exe: LDFLAGS += -Wl,-Bsymbolic
+shellcode-arm: shellcode-arm.exe
 	$(OBJCOPY_arm) -I elf32-littlearm -O binary -j $(section) $< $@
-dump-sc-arm: sc-arm
+dump-shellcode-arm: shellcode-arm
 	entry=$$(nm -g $<.exe | gawk '/\<$(entry)\>/{print $$1}')
 	shellcode=$$(objdump -wh $<.exe | gawk '/$(section)\>/{print $$4}')
 	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
 	#$(OBJDUMP_arm) -b binary -m arm -D $<
 
+## test
+
+tests/dl: LDLIBS += -g3 -ldl
+
 ## misc
 
-$(foreach i, $(links), $(eval $(call def, $i)))
-.SUFFIXES:
-.PSEUDO: all clean
+$(foreach i, $(link_targets), $(eval $(call def, $i)))
+.PSEUDO: all clean pie shared shellcode test
 .ONESHELL:
