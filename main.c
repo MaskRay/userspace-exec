@@ -64,6 +64,7 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
     *interp_ehdr = NULL;
 
   REP(i, ehdr->e_phnum) {
+    DP("program header %d", i);
     switch (phdr->p_type) {
     case PT_INTERP:
       interp = phdr;
@@ -82,13 +83,14 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
         mmap_flags |= MAP_FIXED;
       }
       ulong rounded_len = ALIGN_UP(phdr->p_vaddr%PAGESZ+phdr->p_memsz);
+      DP("mmap(%#x, %#x, ...)", specified, rounded_len);
       ulong addr = (ulong)mmap((void*)specified, rounded_len, PROT_WRITE | PROT_EXEC, mmap_flags, -1, 0);
+      DP("mmap = %#x", addr);
       my_memcpy((void*)(addr+phdr->p_vaddr%PAGESZ), (const void*)ehdr+phdr->p_offset, phdr->p_filesz);
       mprotect((void*)addr, rounded_len, (phdr->p_flags & PF_R ? PROT_READ : 0) |
                                   (phdr->p_flags & PF_W ? PROT_WRITE : 0) |
                                   (phdr->p_flags & PF_X ? PROT_EXEC : 0));
 
-      DP("mmap_addr %p", addr);
       if (! first_addr) {
         if (elf_ehdr)
           *elf_ehdr = (Elf_Ehdr*)addr;
