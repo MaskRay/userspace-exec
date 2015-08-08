@@ -10,7 +10,7 @@ SHELLCODE INLINE long syscall1(long number, long a0)
 #elif defined(__x86_64)
   long ret;
   asm("syscall\n\t"
-      : "=a"(ret) : "a"(number),"D"(a0) : "memory","cc");
+      : "=a"(ret) : "a"(number),"D"(a0) : "rcx","r11","memory","cc");
 #elif defined(__arm__)
   register long ret asm("r0");
   register long number_ asm("r7") = number;
@@ -29,7 +29,7 @@ SHELLCODE INLINE long syscall2(long number, long a0, long a1)
 #elif defined(__x86_64)
   long ret;
   asm("syscall\n\t"
-      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1) : "memory","cc");
+      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1) : "rcx","r11","memory","cc");
 #elif defined(__arm__)
   register long ret asm("r0");
   register long number_ asm("r7") = number;
@@ -49,7 +49,7 @@ SHELLCODE INLINE long syscall3(long number, long a0, long a1, long a2)
 #elif defined(__x86_64)
   long ret;
   asm("syscall\n\t"
-      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1),"d"(a2) : "memory","cc");
+      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1),"d"(a2) : "rcx","r11","memory","cc");
 #elif defined(__arm__)
   register long ret asm("r0");
   register long number_ asm("r7") = number;
@@ -84,7 +84,7 @@ SHELLCODE INLINE long syscall6(long number, long a0, long a1, long a2, long a3, 
   register long b4 asm("r8") = a4;
   register long b5 asm("r9") = a5;
   asm ("syscall\n\t"
-      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1),"d"(a2),"r"(b3),"r"(b4),"r"(b5) : "memory","cc");
+      : "=a"(ret) : "a"(number),"D"(a0),"S"(a1),"d"(a2),"r"(b3),"r"(b4),"r"(b5) : "rcx","r11","memory","cc");
 #else
   register long ret asm("r0");
   register long number_ asm("r7") = number;
