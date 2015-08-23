@@ -16,6 +16,11 @@ SHELLCODE INLINE long syscall1(long number, long a0)
   register long number_ asm("r7") = number;
   register long b0 asm("r0") = b0;
   asm("swi 0\n\t" : "=r"(ret) : "r"(number_),"r"(b0): "memory","cc");
+#elif defined(__mips__)
+  register long ret asm("v0");
+  register long number_ asm("v0") = number;
+  register long b0 asm("a0") = a0;
+  asm("syscall\n\t" : "=r"(ret) : "r"(number_),"r"(a0) : "memory");
 #endif
   return ret;
 }
@@ -36,6 +41,12 @@ SHELLCODE INLINE long syscall2(long number, long a0, long a1)
   register long b0 asm("r0") = a0;
   register long b1 asm("r1") = a1;
   asm("swi 0\n\t" : "=r"(ret) : "r"(number_),"r"(b0),"r"(b1) : "memory","cc");
+#elif defined(__mips__)
+  register long ret asm("v0");
+  register long number_ asm("v0") = number;
+  register long b0 asm("a0") = a0;
+  register long b1 asm("a1") = a1;
+  asm("syscall\n\t" : "=r"(ret) : "r"(number_),"r"(a0),"r"(a1) : "memory");
 #endif
   return ret;
 }
@@ -57,6 +68,13 @@ SHELLCODE INLINE long syscall3(long number, long a0, long a1, long a2)
   register long b1 asm("r1") = a1;
   register long b2 asm("r2") = a2;
   asm("swi 0\n\t" : "=r"(ret) : "r"(number_),"r"(b0),"r"(b1),"r"(b2) : "memory","cc");
+#elif defined(__mips__)
+  register long ret asm("v0");
+  register long number_ asm("v0") = number;
+  register long b0 asm("a0") = a0;
+  register long b1 asm("a1") = a1;
+  register long b2 asm("a2") = a2;
+  asm("syscall\n\t" : "=r"(ret) : "r"(number_),"r"(a0),"r"(a1),"r"(a2) : "memory");
 #endif
   return ret;
 }
@@ -85,7 +103,7 @@ SHELLCODE INLINE long syscall6(long number, long a0, long a1, long a2, long a3, 
   register long b5 asm("r9") = a5;
   asm ("syscall\n\t"
       : "=a"(ret) : "a"(number),"D"(a0),"S"(a1),"d"(a2),"r"(b3),"r"(b4),"r"(b5) : "rcx","r11","memory","cc");
-#else
+#elif defined(__arm__)
   register long ret asm("r0");
   register long number_ asm("r7") = number;
   register long b0 asm("r0") = a0;
@@ -96,6 +114,32 @@ SHELLCODE INLINE long syscall6(long number, long a0, long a1, long a2, long a3, 
   register long b5 asm("r5") = a5;
   asm("swi 0\n\t"
       : "=r"(ret) : "r"(number_),"r"(b0),"r"(b1),"r"(b2),"r"(b3),"r"(b4),"r"(b5) : "memory","cc");
+#elif defined(__mips__)
+  register long ret asm("v0");
+  register long number_ asm("v0") = number;
+  register long b0 asm("a0") = a0;
+  register long b1 asm("a1") = a1;
+  register long b2 asm("a2") = a2;
+  register long b3 asm("a3") = a3;
+  asm(
+      ".set noat\n\t"
+      "addiu      $sp, $sp, -24\n\t"
+      "lw         $at, %[arg_5]\n\t"
+      "sw         $at, 16($sp)\n\t"
+      "lw         $at, %[arg_6]\n\t"
+      "sw         $at, 20($sp)\n\t"
+      "syscall    \n\t"
+      "addiu      $sp, $sp, 8\n\t"
+      ".set at\n\t"
+      : "=r"(ret)
+      : "r"( number_ ),
+      "r"( b0 ),
+      "r"( b1 ),
+      "r"( b2 ),
+      "r"( b3 ),
+      [arg_5] "g"( a4 ),
+      [arg_6] "g"( a5 )
+      : "memory", "sp");
 #endif
   return ret;
 }

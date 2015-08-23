@@ -1,6 +1,6 @@
 ## defines
 
-arch := i386 x86-64 arm
+arch := i386 x86-64 arm mipsel
 pie_goals := $(addprefix pie-,$(arch))
 shared_goals := $(patsubst %,shared-%.so,$(arch))
 shellcode_goals := $(patsubst %,shellcode-%,$(arch))
@@ -41,6 +41,8 @@ pie-i386: CFLAGS += -DDEBUG -g3 -m32 -fpie -pie
 pie-x86-64: CFLAGS += -DDEBUG -g3 -fpie -pie
 pie-arm: CC = $(CC_arm)
 pie-arm: CFLAGS += -DDEBUG -g3 -fpie -pie
+pie-mipsel: CC = $(CC_mipsel)
+pie-mipsel: CFLAGS += -DDEBUG -g3 -fpie -pie
 
 ## shared library
 
@@ -48,6 +50,8 @@ shared-i386.so: CFLAGS += -DDEBUG -g3 -m32 -fpic -shared
 shared-x86-64.so: CFLAGS += -DDEBUG -g3 -fpic -shared
 shared-arm.so: CC = $(CC_arm)
 shared-arm.so: CFLAGS += -DDEBUG -g3 -fpic -shared
+shared-mips.so: CC = $(CC_mips)
+shared-mips.so: CFLAGS += -DDEBUG -g3 -fpic -shared
 
 ## shellcode
 
@@ -81,6 +85,17 @@ dump-shellcode-arm: shellcode-arm
 	shellcode=$$(objdump -wh $<.exe | gawk '/$(section)\>/{print $$4}')
 	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
 	#$(OBJDUMP_arm) -b binary -m arm -D $<
+
+shellcode-mips.exe: CC = $(CC_mips)
+shellcode-mips.exe: CFLAGS += -mthumb
+shellcode-mips.exe: LDFLAGS += -Wl,-Bsymbolic
+shellcode-mips: shellcode-mips.exe
+	$(OBJCOPY_mips) -I elf32-tradlittlemips -O binary -j $(section) $< $@
+dump-shellcode-mips: shellcode-mips
+	entry=$$(nm -g $<.exe | gawk '/\<$(entry)\>/{print $$1}')
+	shellcode=$$(objdump -wh $<.exe | gawk '/$(section)\>/{print $$4}')
+	printf 'entry: 0x%08x\n' $$[0x$$entry-0x$$shellcode]
+	#$(OBJDUMP_mips) -b binary -m mips -D $<
 
 ## test
 

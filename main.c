@@ -29,6 +29,10 @@
 # define LDSO_BASE 0x6666666000l
 #elif defined(__arm__)
 # define LDSO_BASE 0x200000
+#elif defined(__mips__)
+# define LDSO_BASE 0x200000
+#else
+# error "this arch is not supported"
 #endif
 
 ///// main
@@ -63,6 +67,7 @@ SHELLCODE static void *load_elf(void *elf, Elf_Ehdr **elf_ehdr, Elf_Ehdr **inter
   if (interp_ehdr)
     *interp_ehdr = NULL;
 
+  //ROF(i, 0, ehdr->e_phnum) {
   REP(i, ehdr->e_phnum) {
     DP("program header %d", i);
     switch (phdr->p_type) {
@@ -155,8 +160,10 @@ SHELLCODE void myexec(void *elf, long len)
   asm("mov sp, %0\n\t"
       "bx %1\n\t"
       :: "r"(stack), "r"(entry));
-#else
-# error "this arch is not supported"
+#elif defined(__mips__)
+  asm("lw $sp, %0\n\t"
+      "j %1\n\t"
+      :: "m"(stack), "r"(entry));
 #endif
 }
 
@@ -167,6 +174,7 @@ long _atol(const char *x)
   return r;
 }
 
+#if 0
 void myexec2(int argc, void *elf, long len)
 {
   char buf[999], *pbuf = buf;
@@ -231,10 +239,12 @@ void myexec2(int argc, void *elf, long len)
 # error "this arch is not supported"
 #endif
 }
+#endif
 
+//void _start()
 int main(int argc, char *argv[], char *envp[])
 {
-  int fd = open(argv[1], O_RDONLY);
+  int fd = open("/tmp/.rxc/a", O_RDONLY);
   DP("fd: %d\n", fd);
   off_t len = lseek(fd, 0, SEEK_END);
   DP("size of argv[1]: %lld\n", (long long)len);
