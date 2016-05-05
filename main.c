@@ -155,7 +155,7 @@ SHELLCODE void myexec(void *elf, long len)
 #elif defined(__x86_64)
   asm("movq %0, %%rsp\n\t"
       "jmp *%1\n\t"
-      :: "g"(stack), "r"(entry));
+      :: "g"(stack), "r"(entry), "d"(0));
 #elif defined(__arm__)
   asm("mov sp, %0\n\t"
       "bx %1\n\t"

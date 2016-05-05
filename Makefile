@@ -2,11 +2,11 @@
 
 arch := i386 x86-64 arm mipsel
 pie_goals := $(addprefix pie-,$(arch))
-shared_goals := $(patsubst %,shared-%.so,$(arch))
+dyn_goals := $(addprefix dyn-,$(arch))
 shellcode_goals := $(patsubst %,shellcode-%,$(arch))
 test_goals := tests/dl tests/shellcode
-goals := $(pie_goals) $(shared_goals) $(shellcode_goals) $(test_goals)
-link_targets := $(pie_goals) $(shared_goals) $(patsubst %,shellcode-%.exe,$(arch))
+goals := $(pie_goals) $(dyn_goals) $(shellcode_goals) $(test_goals)
+link_targets := $(pie_goals) $(dyn_goals) $(patsubst %,shellcode-%.exe,$(arch))
 entry := myexec
 section = .shellcode
 CFLAGS += -std=gnu99 -I.
@@ -44,14 +44,14 @@ pie-arm: CFLAGS += -DDEBUG -g3 -fpie -pie
 pie-mipsel: CC = $(CC_mipsel)
 pie-mipsel: CFLAGS += -DDEBUG -g3 -fpie -pie
 
-## shared library
+## standalone executable dyn (./dyn-x86-64 will load /tmp/.rxc/a)
 
-shared-i386.so: CFLAGS += -DDEBUG -g3 -m32 -fpic -shared
-shared-x86-64.so: CFLAGS += -DDEBUG -g3 -fpic -shared
-shared-arm.so: CC = $(CC_arm)
-shared-arm.so: CFLAGS += -DDEBUG -g3 -fpic -shared
-shared-mips.so: CC = $(CC_mips)
-shared-mips.so: CFLAGS += -DDEBUG -g3 -fpic -shared
+dyn-i386: CFLAGS += -nostdlib -Wl,-Bsymbolic,-emain -g3 -m32 -fpic -shared
+dyn-x86-64: CFLAGS += -nostdlib -Wl,-Bsymbolic,-emain -g3 -fpic -shared
+dyn-arm: CC = $(CC_arm)
+dyn-arm: CFLAGS += -nostdlib -Wl,-Bsymbolic,-emain -g3 -fpic -shared
+dyn-mipsel: CC = $(CC_mipsel)
+dyn-mipsel: CFLAGS += -nostdlib -Wl,-Bsymbolic,-emain -g3 -fpic -shared
 
 ## shellcode
 
